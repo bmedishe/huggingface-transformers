@@ -416,7 +416,7 @@ class Trainer:
 
         if args.fp16 and not args.deepspeed:  # deepspeed manages its own fp16
             if self.fp16_backend == "amp":
-                self.use_amp = True
+                self.use_amp = False
                 if is_sagemaker_mp_enabled():
                     self.scaler = smp.amp.GradScaler()
                 elif self.sharded_ddp is not None:
