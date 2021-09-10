@@ -416,13 +416,15 @@ class Trainer:
 
         if args.fp16 and not args.deepspeed:  # deepspeed manages its own fp16
             if self.fp16_backend == "amp":
-                self.use_amp = False
+                self.use_amp = True
                 if is_sagemaker_mp_enabled():
                     self.scaler = smp.amp.GradScaler()
                 elif self.sharded_ddp is not None:
                     self.scaler = ShardedGradScaler()
                 else:
                     self.scaler = torch.cuda.amp.GradScaler()
+            elif self.fp16_backend == "disable_dls":
+                self.use_amp = False
             else:
                 if not is_apex_available():
                     raise ImportError(
