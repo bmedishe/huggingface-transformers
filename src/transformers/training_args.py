@@ -184,7 +184,7 @@ class TrainingArguments:
         fp16_backend (:obj:`str`, `optional`, defaults to :obj:`"auto"`):
             The backend to use for mixed precision training. Must be one of :obj:`"auto"`, :obj:`"amp"` or
             :obj:`"apex"`. :obj:`"auto"` will use AMP or APEX depending on the PyTorch version detected, while the
-            other choices will force the requested backend.:obj:`"disable_dls"` will disable dynamic loss scaling in backward()
+            other choices will force the requested backend.:obj:`"disable_dls"` will disable loss scaling with torch.amp.GradScaler  
         fp16_full_eval (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether to use full 16-bit precision evaluation instead of 32-bit. This will be faster and save memory but
             can harm metric values.
