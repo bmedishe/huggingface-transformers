@@ -405,6 +405,7 @@ class Trainer:
         # Mixed precision setup
         self.use_apex = False
         self.use_amp = False
+        self.use_disable_dls = False
         self.fp16_backend = None
 
         if args.fp16:
@@ -424,7 +425,8 @@ class Trainer:
                 else:
                     self.scaler = torch.cuda.amp.GradScaler()
             elif self.fp16_backend == "disable_dls":
-                self.use_amp = False
+                self.use_amp = True
+                self.use_disable_dls = True
             else:
                 if not is_apex_available():
                     raise ImportError(
@@ -1288,7 +1290,7 @@ class Trainer:
                     if args.max_grad_norm is not None and args.max_grad_norm > 0 and not self.deepspeed:
                         # deepspeed does its own clipping
 
-                        if self.use_amp:
+                        if self.use_amp and not self.use_disable_dls:
                             # AMP: gradients need unscaling
                             self.scaler.unscale_(self.optimizer)
 
@@ -1311,7 +1313,7 @@ class Trainer:
                         pass  # called outside the loop
                     elif is_torch_tpu_available():
                         xm.optimizer_step(self.optimizer)
-                    elif self.use_amp:
+                    elif self.use_amp and not self.use_disable_dls:
                         scale_before = self.scaler.get_scale()
                         self.scaler.step(self.optimizer)
                         self.scaler.update()
@@ -1506,7 +1508,7 @@ class Trainer:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         torch.save(self.lr_scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
                     reissue_pt_warnings(caught_warnings)
-                    if self.use_amp:
+                    if self.use_amp and not self.use_disable_dls:
                         torch.save(self.scaler.state_dict(), os.path.join(output_dir, "scaler.pt"))
         elif self.is_world_process_zero() and not self.deepspeed:
             # deepspeed.save_checkpoint above saves model/optim/sched
@@ -1514,7 +1516,7 @@ class Trainer:
             with warnings.catch_warnings(record=True) as caught_warnings:
                 torch.save(self.lr_scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
             reissue_pt_warnings(caught_warnings)
-            if self.use_amp:
+            if self.use_amp and not self.use_disable_dls:
                 torch.save(self.scaler.state_dict(), os.path.join(output_dir, "scaler.pt"))
 
         # Determine the new best metric / best model checkpoint
@@ -1737,7 +1739,7 @@ class Trainer:
         inputs = self._prepare_inputs(inputs)
 
         if is_sagemaker_mp_enabled():
-            scaler = self.scaler if self.use_amp else None
+            scaler = self.scaler if (self.use_amp and not self.use_disable_dls) else None
             loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps, scaler=scaler)
             return loss_mb.reduce_mean().detach().to(self.args.device)
 
@@ -1754,7 +1756,7 @@ class Trainer:
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
             loss = loss / self.args.gradient_accumulation_steps
 
-        if self.use_amp:
+        if self.use_amp and not self.use_disable_dls:
             self.scaler.scale(loss).backward()
         elif self.use_apex:
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
